@@ -1,0 +1,241 @@
+---
+title: "Instagram Influencer Marketing Research"
+author: "Mansukh Kaur"
+date: "14/04/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+hashtag=read.csv("hashtagdata.csv")
+attach(hashtag)
+library(reshape2)
+```
+
+```{r echo=FALSE}
+
+
+```
+## Dataset
+
+### Instagram Post Data
+**(based on hastags)**  
+
+```{r}
+
+kable(head(hashtag,1),caption = "Number of Posts for each Hashtag ", floating.environment="sidewaystable",align = "lccrr")
+```
+
+
+
+### Since we see quite irrevalent data such as URLs, Location IDs,PostIDs, etc. Cleaning the data by removing the unncessary columns  
+
+```{r }
+hashtag=subset(hashtag,select= names(hashtag)[!names(hashtag) %in%c("postUrl", "profileUrl", "fullName","instagramPostUrl","timestamp","postId","videoUrl","locationId","imgUrl","X") ])
+
+l=kable(head(hashtag),caption = "Data Frame relevant to the Project", floating.environment="sidewaystable",align = "lccrr") 
+l
+#view
+```
+# Cleaning Data
+## 1. Changing format of pubDate to display only date
+## 2. Removing NA values
+
+```{r}
+hashtag$pubDate=as.Date(hashtag$pubDate)
+hashtag$isSidecar[is.na(hashtag$isSidecar)]=FALSE
+hashtag$viewCount[is.na(hashtag$viewCount)]=0
+hashtag$commentCount[is.na(hashtag$commentCount)]=0
+hashtag$likeCount[is.na(hashtag$likeCount)]=0
+hashtag$type[is.na(hashtag$type)]="Video"
+
+
+
+```
+## The data is now *tidy*.
+```{r echo=FALSE}
+
+kable(head(hashtag),caption = "Cleaned Data Frame ", floating.environment="sidewaystable",align = "lccrr")
+
+```
+
+```{r echo=FALSE}
+h1=(unique(hashtag$query))
+kable(h1,caption = "Posts for the following Hashtags were scraped", floating.environment="sidewaystable",align = "lccrr")
+```
+
+
+```{r}
+dis=hashtag%>%group_by(type)%>%count(type)
+ggplot(dis,aes(x="",y=n,fill=type))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y",start=0)+labs(title = "Post Distribution",x=" ",y=" ")+
+  geom_text(aes(label = n),
+            position = position_stack(vjust = 0.5))
+
+```
+
+## Number of Posts per Hashtag is given by
+
+
+```{r echo=FALSE}
+posts=hashtag%>%group_by(query)%>%count(query)
+No_of_Posts=posts$n
+Hashtag<-posts$query
+ggplot(data=posts, aes(x=Hashtag, y=No_of_Posts , fill=No_of_Posts ))+
+  geom_bar(stat="identity",color="purple")+
+  theme(axis.text.x = element_text(angle=90))+labs(title = "Number of Posts per Hashtag", x="HASHTAGS", y="Number of Posts",caption = "  ")  
+
+#------------------------------
+
+  
+```
+
+
+
+## Number of *Photos and Videos* each per Hashtag
+```{r}
+ss=hashtag[,c("query","type")]
+s1=ss%>%group_by(query,type)%>%count(type)
+#View(s1)
+
+ggplot(s1, aes(x=query, y=n, fill=type)) +
+    geom_bar(stat='identity')+theme(axis.text.x = element_text(angle=90))+labs(x="Hashtags",y="Number of Posts")
+#--------
+```
+
+## Analysing how well Photos and Videos performed for each Hashtag  
+### Let's consider Photos first
+```{r echo=FALSE}
+ss=hashtag[,c("query","likeCount","commentCount","viewCount","type")]
+s1=ss%>%group_by(query,type)%>%summarise(Likes=mean(likeCount),Comments=sum(commentCount),mean(viewCount))
+#View(sss)
+s2=subset(s1, type == "Photo")
+s2=s2[ , c(1,3,4)]
+sss=melt(s2,id.vars = "query")
+#head(sss)
+ggplot(sss, aes(x=query, y=value, fill=variable)) +
+    geom_bar(stat='identity', position='dodge')+theme(axis.text.x = element_text(angle=90))+
+    labs(x="Hashtags",y="Count")
+#View(sss)
+```
+
+
+We can see that engagement is mostly in the form of Likes for most of the Hashtags
+
+
+
+### Let's see how Videos perform 
+```{r}
+ss=hashtag[,c("query","likeCount","commentCount","viewCount","type")]
+s1=ss%>%group_by(query,type)%>%summarise(Likes=mean(likeCount),Comments=sum(commentCount),Views=mean(viewCount))
+#View(sss)
+s2=subset(s1, type == "Video")
+s2=s2[ , c(1,3,4,5)]
+sss=melt(s2,id.vars = "query")
+#head(sss)
+ggplot(sss, aes(x=query, y=value, fill=variable)) +
+    geom_bar(stat='identity', position='dodge')+theme(axis.text.x = element_text(angle=90))+labs(x="Hashtag",y="Count")
+```
+
+
+We can see Views have huge impact on engagement.
+
+
+
+### Generally, let's check, How Photos and Videos Generate Engagement
+```{r echo=FALSE}
+typeLikes=hashtag%>%group_by(type)%>%summarise(mean(likeCount),mean(commentCount),mean(viewCount)) 
+typeWiseCount=hashtag%>%group_by(type)%>%count(type)
+
+
+#View(typeLikes)
+df2 <- data.frame(t(typeLikes[-1]))
+df2=cbind(df2,c("Likes","Comments","Views"))
+colnames(df2) <- c("Photo","Video","Engagement_Type")
+
+p=data.frame(df2[,c(1,3)])
+ggplot(p,aes(x="",y=Photo,fill=Engagement_Type))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y",start=0)+labs(title = "Engagement from Photos", x=" ", y=" ")
+
+chkMulPhotos=hashtag%>%group_by(type,isSidecar)%>%count(isSidecar)%>%summarise(sum(likeCount))
+
+chkMulPhotos1=hashtag%>%group_by(type,isSidecar)%>%summarise(mean(likeCount))
+View(df2)
+q=data.frame(df2[,c(2,3)])
+ggplot(q,aes(x="",y=Video,fill=Engagement_Type))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y",start=0)+labs(title = "Engagement from Videos",x=" ",y=" ")
+
+
+
+```
+
+
+### We can see that extra Views attribute of Videos brings a drastic change in total engagement
+```{r}
+ss=hashtag[,c("query","likeCount","commentCount","viewCount","type","pubDate")]
+s1=ss%>%group_by(query,type)%>%summarise(Likes=mean(likeCount), Comments=sum(commentCount), Views=mean(viewCount), total=Likes+Comments+Views)
+s3=ss%>%group_by(query)%>%summarise(x=min(as.Date(pubDate)), y=max(as.Date(pubDate)), days=y-x)
+s2=subset(s1, type == "Video")
+s2=s2[ , c(1,3,4,5)]
+sss=melt(s2,id.vars = "query")
+#View(sss)
+#head(sss)
+ggplot(sss, aes(x=query, y=value, fill=variable)) +
+    geom_bar(stat='identity', position='dodge')+
+    theme(axis.text.x = element_text(angle=90))+
+    labs(title = "Likes, Comments, Views Distribution per Hashtag",x="Hashtags",y="Count")
+```
+
+
+# Timeline of Posts for all the Hashtags VS total engagement
+
+```{r}
+ss=hashtag[,c("query","likeCount","commentCount","viewCount","type","pubDate")]
+s1=ss%>%group_by(query,pubDate)%>%summarise(a=mean(likeCount), b=sum(commentCount), c=mean(viewCount), total=a+b+c)
+s2=ss%>%group_by(query)%>%summarise(a=mean(likeCount), b=sum(commentCount), c=mean(viewCount), total=a+b+c)
+s3=ss%>%group_by(query)%>%summarise(x=min(as.Date(pubDate)), y=max(as.Date(pubDate)), days=y-x)
+ggplot(s1, aes(x=pubDate, y=total)) + 
+  geom_area(col="deeppink" , fill="deeppink")+theme(axis.text.x = element_text(angle = 90))+facet_wrap(~ query,scales = "free")+labs(x="Timeline",y="Engagement")
+```
+
+
+
+## Total Engagement VS Nuumber of Days Plot
+
+
+```{r}
+
+
+
+x=s2$total
+y=s3$days
+z=s3$query
+s5=cbind.data.frame(engagement=s2$total,days=s3$days,query=s3$query)
+#s5=cbind(x,y,z)
+s5=as.data.frame(s5)
+#View(s5)
+sd=melt(s5,id.vars = "query")
+
+
+
+
+
+
+ggplot(data = s5, aes(x = query, y = engagement)) + 
+  geom_bar(stat = "identity",col="deeppink",fill="deeppink") + 
+  geom_line(data = s5, aes(x = query, y = days*100, group = 1,col="steelblue",name="Days"), inherit.aes = FALSE) +
+  scale_y_continuous(sec.axis = sec_axis(~./100, name = "No of Days"))+
+  theme(axis.text.x = element_text(angle=90),legend.position="none")+labs(x="Hashtags",y="Engagement")
+
+cor(s2$total,as.numeric(s3$days))
+
+
+
+
+```
